@@ -81,8 +81,6 @@ fn main() -> Result<(), &'static str> {
         None => DateTime::default(),
     };
 
-    println!("span: {:?}", span);
-
     let db = Database::new(DATABASE_PATH, None);
 
     let first_results = match db.select(DATABASE_COLLECTION, |r: &FirstResult| {
