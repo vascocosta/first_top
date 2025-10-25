@@ -95,6 +95,8 @@ fn main() -> Result<(), &'static str> {
 
     let rank = rank(&first_results, MAX_RESULTS)?;
 
+    println!("Top !first results (smallest gaps to the opening time of winners):");
+
     for (pos, (date, x)) in rank.iter().enumerate() {
         println!(
             "{}. {:?} {} {} ms",
