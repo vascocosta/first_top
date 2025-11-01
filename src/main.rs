@@ -97,11 +97,11 @@ fn main() -> Result<(), &'static str> {
 
     println!("Top !first results (smallest gaps to the opening time of winners):");
 
-    for (pos, (date, x)) in rank.iter().enumerate() {
+    for (pos, (date, x)) in rank.into_iter().enumerate() {
         println!(
             "{}. {:?} {} {} ms",
             pos + 1,
-            date,
+            date?,
             x.get(0).ok_or("Could not get data")?.1,
             x.get(0).ok_or("Could not get data")?.0 / 1000
         );
@@ -162,28 +162,27 @@ fn start_date(period: Period) -> DateTime<Utc> {
 fn rank(
     first_results: &[FirstResult],
     max_results: usize,
-) -> Result<Vec<(NaiveDate, Vec<(i64, String)>)>, &'static str> {
+) -> Result<Vec<(Result<NaiveDate, &'static str>, Vec<(i64, String)>)>, &'static str> {
     // Group entries by date (each different day of the year is a key for the group).
     // Chain date_naive() to get rid of the time and return a date as key to chunk_by.
-    let groups = first_results.iter().chunk_by(|r| {
-        let tz: Tz = r
-            .timezone
-            .parse()
-            .expect("Timezone should be in Continent/Capital format");
+    let groups = first_results
+        .iter()
+        .chunk_by(|r| -> Result<NaiveDate, &'static str> {
+            let tz: Tz = r.timezone.parse().map_err(|_| "Bad timezone")?;
 
-        r.datetime.with_timezone(&tz).date_naive()
-    });
+            Ok(r.datetime.with_timezone(&tz).date_naive())
+        });
 
     // For each group (one per date), determine the best player and time delta.
     // The outer filter_map itereates through each date and selects where the best delta is between 0 and CUTOFF_US.
     // Then sorts the groups by the lowest delta, makes results unique by nick and takes max_results.
-    let rank: Vec<(NaiveDate, Vec<(i64, String)>)> = groups
+    let rank: Vec<(Result<NaiveDate, &'static str>, Vec<(i64, String)>)> = groups
         .into_iter()
         .filter_map(|(day, group)| {
             // The inner filter_map calculates for each date the deltas, sorts by lowest and takes only one.
             // filter_map maps to Vec<(i64, String)>, a vector of tuples representing delta and nick.
             let delta_results: Vec<(i64, String)> = group
-                .filter_map(|r| delta(day, r).ok())
+                .filter_map(|r| delta(day.ok()?, r).ok())
                 .sorted_by(|a, b| Ord::cmp(&a.0, &b.0))
                 .take(1)
                 .collect();
