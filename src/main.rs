@@ -66,7 +66,7 @@ fn main() -> Result<(), &'static str> {
             return Err("A channel must be provided");
         }
     };
-    let span: DateTime<Utc> = match args.next() {
+    let span = match match args.next() {
         Some(span) => match span.as_str() {
             "daily" => start_date(Period::Daily),
             "day" | "today" => start_date(Period::Day),
@@ -78,7 +78,13 @@ fn main() -> Result<(), &'static str> {
             "yearly" => start_date(Period::Yearly),
             _ => start_date(Period::Unknown),
         },
-        None => DateTime::default(),
+        None => Some(DateTime::default()),
+    } {
+        Some(span) => span,
+        None => {
+            println!("Invalid time span");
+            return Err("Invalid time span");
+        }
     };
 
     let db = Database::new(DATABASE_PATH, None);
@@ -111,14 +117,12 @@ fn main() -> Result<(), &'static str> {
 }
 
 /// Compute the start date based on the period of time we want to go back in time.
-fn start_date(period: Period) -> DateTime<Utc> {
+fn start_date(period: Period) -> Option<DateTime<Utc>> {
     let now = Utc::now();
     let days = match period {
         Period::Daily => 1,
         Period::Day => {
-            return now
-                .checked_sub_signed(TimeDelta::hours(now.hour() as i64))
-                .unwrap_or_default();
+            return now.checked_sub_signed(TimeDelta::hours(now.hour() as i64));
         }
         Period::Month => now.day(),
         Period::Monthly => 30,
@@ -132,21 +136,20 @@ fn start_date(period: Period) -> DateTime<Utc> {
             Weekday::Sun => 7,
         },
         Period::Weekly => 7,
-        Period::Year => now
-            .signed_duration_since(
-                DateTime::parse_from_str(
-                    format!("{}-12-31 11:59 +0000", now.year() - 1).as_str(),
-                    "%Y-%m-%d %H:%M %z",
-                )
-                .unwrap_or_default(),
+        Period::Year => {
+            let datetime = DateTime::parse_from_str(
+                format!("{}-12-31 11:59 +0000", now.year() - 1).as_str(),
+                "%Y-%m-%d %H:%M %z",
             )
-            .num_days() as u32,
+            .ok()?;
+
+            now.signed_duration_since(datetime).num_days() as u32
+        }
         Period::Yearly => 365,
-        Period::Unknown => return DateTime::default(),
+        Period::Unknown => return Some(DateTime::default()),
     };
 
     now.checked_sub_days(Days::new(days as u64))
-        .unwrap_or_default()
 }
 
 /// Compute the top MAX_RESULTS earliest !1st submissions for each nick.
